@@ -1,7 +1,12 @@
 package com.assaf.arcgis_sdk;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.VectorDrawable;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
@@ -12,7 +17,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -34,6 +42,7 @@ import com.esri.arcgisruntime.mapping.view.Graphic;
 import com.esri.arcgisruntime.mapping.view.GraphicsOverlay;
 import com.esri.arcgisruntime.mapping.view.IdentifyLayerResult;
 import com.esri.arcgisruntime.mapping.view.MapView;
+import com.esri.arcgisruntime.symbology.PictureMarkerSymbol;
 import com.esri.arcgisruntime.symbology.SimpleFillSymbol;
 import com.esri.arcgisruntime.symbology.SimpleLineSymbol;
 import com.esri.arcgisruntime.symbology.SimpleMarkerSymbol;
@@ -91,6 +100,7 @@ public class MainActivity extends AppCompatActivity {
         final double scale = 25000;
         setupFeatureLayer();
         graphicsOverlay = new GraphicsOverlay();
+        mapView.getGraphicsOverlays().add(graphicsOverlay);
         mapView.setMap(map);
         mapView.setViewpoint(new Viewpoint(latitude, longitude, scale));
         callout = mapView.getCallout();
@@ -105,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
                 int tolerance = 10;
 
                 Point mapPoint = mMapView.screenToLocation(screenPoint);
-
+                addGraphic(mapPoint);
 
                 final ListenableFuture<IdentifyLayerResult> identifyLayerResultFuture = mMapView
                         .identifyLayerAsync(featureLayer, screenPoint, tolerance, false, -1);
@@ -173,7 +183,6 @@ public class MainActivity extends AppCompatActivity {
                         Log.e(getResources().getString(R.string.app_name), "Select area failed: " + e1.getMessage());
                     }
                 });
-                addGraphic(mapPoint);
                 return super.onSingleTapConfirmed(motionEvent);
 
             }
@@ -191,18 +200,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void addGraphic(Point mapPoint) {
-//        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), com.esri.arcgisruntime.R.drawable.arcgisruntime_location_display_course_symbol);
-//        BitmapDrawable pinDrawable = new BitmapDrawable(getResources(), bitmap);
-//        PictureMarkerSymbol pinSymbol = new PictureMarkerSymbol(pinDrawable);
-//        pinSymbol.setWidth(30);
-//        pinSymbol.setHeight(30);
+        final Bitmap bitmap = getBitmapFromVectorDrawable(this, R.drawable.location_point);
+        final BitmapDrawable pinDrawable = new BitmapDrawable(getResources(), bitmap);
+        final PictureMarkerSymbol pinSymbol = new PictureMarkerSymbol(pinDrawable);
 
-        SimpleMarkerSymbol simpleMarkerSymbol =
-                new SimpleMarkerSymbol(SimpleMarkerSymbol.Style.CIRCLE, Color.RED, 10);
+        pinSymbol.setWidth(30);
+        pinSymbol.setHeight(30);
 
-        Graphic pinGraphic = new Graphic(mapPoint, simpleMarkerSymbol);
+        Graphic pinGraphic = new Graphic(mapPoint, pinSymbol);
+        graphicsOverlay.getGraphics().clear();
         graphicsOverlay.getGraphics().add(pinGraphic);
-        System.out.println("addGraphicaddGraphic");
+    }
+    public static Bitmap getBitmapFromVectorDrawable(@NonNull Context context, @DrawableRes int drawableId) {
+        VectorDrawable vectorDrawable = (VectorDrawable) ContextCompat.getDrawable(context, drawableId);
+
+        if (vectorDrawable == null) {
+            throw new IllegalArgumentException("Drawable not found");
+        }
+
+        vectorDrawable.setBounds(0, 0, vectorDrawable.getIntrinsicWidth(), vectorDrawable.getIntrinsicHeight());
+
+        Bitmap bitmap = Bitmap.createBitmap(vectorDrawable.getIntrinsicWidth(),
+                vectorDrawable.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+
+        Canvas canvas = new Canvas(bitmap);
+        vectorDrawable.draw(canvas);
+
+        return bitmap;
     }
 
     private void initSearchView() {
@@ -246,10 +270,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void displayResult(GeocodeResult geocodeResult) {
-        // clear the overlay of any previous result
         graphicsOverlay.getGraphics().clear();
 
-        // create a graphic to display the address text
         final TextSymbol textSymbol = new TextSymbol(
                 18f,
                 geocodeResult.getLabel(),
@@ -261,7 +283,6 @@ public class MainActivity extends AppCompatActivity {
         final Graphic textGraphic = new Graphic(geocodeResult.getDisplayLocation(), textSymbol);
         graphicsOverlay.getGraphics().add(textGraphic);
 
-        // create a graphic to display the location as a red square
         final SimpleMarkerSymbol simpleMarkerSymbol = new SimpleMarkerSymbol(
                 SimpleMarkerSymbol.Style.SQUARE,
                 Color.RED,
