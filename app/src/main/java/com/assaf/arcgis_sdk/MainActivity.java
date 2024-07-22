@@ -22,6 +22,7 @@ import com.esri.arcgisruntime.concurrent.ListenableFuture;
 import com.esri.arcgisruntime.data.Feature;
 import com.esri.arcgisruntime.data.ServiceFeatureTable;
 import com.esri.arcgisruntime.geometry.Envelope;
+import com.esri.arcgisruntime.geometry.Point;
 import com.esri.arcgisruntime.layers.FeatureLayer;
 import com.esri.arcgisruntime.mapping.ArcGISMap;
 import com.esri.arcgisruntime.mapping.BasemapStyle;
@@ -58,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private FeatureLayer featureLayer;
     private ArcGISMap map;
     private LocatorTask locatorTask;
-
+    private GraphicsOverlay graphicsOverlay;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -89,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
         final double longitude = -118.702426;
         final double scale = 25000;
         setupFeatureLayer();
-
+        graphicsOverlay = new GraphicsOverlay();
         mapView.setMap(map);
         mapView.setViewpoint(new Viewpoint(latitude, longitude, scale));
         callout = mapView.getCallout();
@@ -97,18 +98,20 @@ public class MainActivity extends AppCompatActivity {
             @SuppressLint("ClickableViewAccessibility")
             @Override
             public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
+                System.out.println("motionEvent: " + motionEvent);
                 featureLayer.clearSelection();
                 android.graphics.Point screenPoint = new android.graphics.Point(Math.round(motionEvent.getX()),
                         Math.round(motionEvent.getY()));
                 int tolerance = 10;
 
+                Point mapPoint = mMapView.screenToLocation(screenPoint);
+
+
                 final ListenableFuture<IdentifyLayerResult> identifyLayerResultFuture = mMapView
                         .identifyLayerAsync(featureLayer, screenPoint, tolerance, false, -1);
                 identifyLayerResultFuture.addDoneListener(() -> {
                     try {
-                        // get the result from the identify
                         final IdentifyLayerResult identifyLayerResult = identifyLayerResultFuture.get();
-                        // create a list of features from the elements of the identify layer result
                         final List<Feature> identifiedFeatures = new ArrayList<>();
                         for (GeoElement geoelement : identifyLayerResult.getElements()) {
                             if (geoelement instanceof Feature) {
@@ -119,24 +122,18 @@ public class MainActivity extends AppCompatActivity {
                         // select the features in the feature layer
                         featureLayer.selectFeatures(identifiedFeatures);
 
-                        Toast.makeText(MainActivity.this, identifiedFeatures.size() + " features selected",
+                        Toast.makeText(MainActivity.this, identifiedFeatures.size() + " area selected",
                                 Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
-                        String error = "Select features failed: " + e.getMessage();
+                        String error = "Select area failed: " + e.getMessage();
                         Toast.makeText(MainActivity.this, error, Toast.LENGTH_SHORT).show();
                         Log.e(TAG, error);
                     }
                 });
 
-//                return true;
                 if (callout.isShowing()) {
                     callout.dismiss();
                 }
-                // get the point that was clicked and convert it to a point in map coordinates
-//                final android.graphics.Point screenPoint = new android.graphics.Point(Math.round(motionEvent.getX()), Math.round(motionEvent.getY()));
-                // create a selection tolerance
-//                int tolerance = 10;
-                // use identifyLayerAsync to get tapped features
                 final ListenableFuture<IdentifyLayerResult> identifyLayerResultListenableFuture = mMapView
                         .identifyLayerAsync(featureLayer, screenPoint, tolerance, false, 1);
                 identifyLayerResultListenableFuture.addDoneListener(() -> {
@@ -173,9 +170,10 @@ public class MainActivity extends AppCompatActivity {
                             callout.show();
                         }
                     } catch (Exception e1) {
-                        Log.e(getResources().getString(R.string.app_name), "Select feature failed: " + e1.getMessage());
+                        Log.e(getResources().getString(R.string.app_name), "Select area failed: " + e1.getMessage());
                     }
                 });
+                addGraphic(mapPoint);
                 return super.onSingleTapConfirmed(motionEvent);
 
             }
@@ -190,6 +188,21 @@ public class MainActivity extends AppCompatActivity {
         final SimpleFillSymbol fillSymbol = new SimpleFillSymbol(SimpleFillSymbol.Style.SOLID, Color.YELLOW, lineSymbol);
         featureLayer.setRenderer(new SimpleRenderer(fillSymbol));
         map.getOperationalLayers().add(featureLayer);
+    }
+
+    private void addGraphic(Point mapPoint) {
+//        Bitmap bitmap = BitmapFactory.decodeResource(getResources(), com.esri.arcgisruntime.R.drawable.arcgisruntime_location_display_course_symbol);
+//        BitmapDrawable pinDrawable = new BitmapDrawable(getResources(), bitmap);
+//        PictureMarkerSymbol pinSymbol = new PictureMarkerSymbol(pinDrawable);
+//        pinSymbol.setWidth(30);
+//        pinSymbol.setHeight(30);
+
+        SimpleMarkerSymbol simpleMarkerSymbol =
+                new SimpleMarkerSymbol(SimpleMarkerSymbol.Style.CIRCLE, Color.RED, 10);
+
+        Graphic pinGraphic = new Graphic(mapPoint, simpleMarkerSymbol);
+        graphicsOverlay.getGraphics().add(pinGraphic);
+        System.out.println("addGraphicaddGraphic");
     }
 
     private void initSearchView() {
@@ -233,7 +246,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void displayResult(GeocodeResult geocodeResult) {
-        GraphicsOverlay graphicsOverlay = new GraphicsOverlay();
         // clear the overlay of any previous result
         graphicsOverlay.getGraphics().clear();
 
